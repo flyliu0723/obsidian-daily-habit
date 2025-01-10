@@ -13,38 +13,34 @@
                     :key="day.date"
                     :class="['day', `color-${day.level}`]"
                     @click="handleDayClick(day.date)"
-                    ></div>
+                    >
+                    <span v-for="item in day.colorSpan" :key="item.content"></span>
+                  </div>
             </template>
-          <!-- <div v-for="week in monthData[month]" :key="week[0].date" class="week">
-            <div
-              v-for="day in week"
-              :key="day.date"
-              :class="['day', `color-${day.level}`]"
-              @click="handleDayClick(day.date)"
-            >
-            
-            </div>
-          </div> -->
         </template>
       </div>
     </div>
   </template>
   
   <script lang="ts">
-  import { defineComponent, ref, onMounted } from 'vue';
-  
+  import { defineComponent, ref, onMounted, toRef, computed } from 'vue';
+  interface ColorSpan {
+    content: string,
+    status: number
+  }
   interface Day {
     date: string;
     level: number;
+    colorSpan: ColorSpan[]
   }
   
   export default defineComponent({
     name: 'AnnualHeatmap',
-    setup() {
+    setup(props) {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthData = ref<{ [key: string]: Day[][] }>({});
   
-      const generateHeatmapData = () => {
+      const generateHeatmapData = (habitList: any) => {
         const startDate = new Date(2025, 0, 1); // 2025年1月1日
         const endDate = new Date(2025, 11, 31); // 2025年12月31日
   
@@ -54,7 +50,8 @@
   
         while (currentDate <= endDate) {
           const dateStr = currentDate.toISOString().split('T')[0];
-          const level = Math.floor(Math.random() * 4); // 随机生成0-3的级别
+          console.log(dateStr, 555)
+          const level = 0
   
           if (currentDate.getMonth() !== currentMonth) {
             if (currentWeek.length > 0) {
@@ -63,8 +60,13 @@
             }
             currentMonth = currentDate.getMonth();
           }
-  
-          currentWeek.push({ date: dateStr, level });
+          const todayHabit = habitList.find((item: any) => item.date == dateStr)
+          if(todayHabit && todayHabit.habits) {
+            currentWeek.push({ date: dateStr, level, colorSpan: (todayHabit.habits || []).filter((d: any) => d.status == 1) });
+          }else {
+            currentWeek.push({ date: dateStr, level, colorSpan: [] });
+          }
+          
   
           if (currentWeek.length === 7) {
             monthData.value[months[currentMonth]].push(currentWeek);
@@ -87,13 +89,18 @@
         months.forEach(month => {
           monthData.value[month] = [];
         });
-        generateHeatmapData();
       });
-  
+      function renderHeatMap(habitList: any) {
+        generateHeatmapData(habitList);
+      }
+      const monthDataComputed = computed(() => {
+        return monthData.value;
+      });
       return {
         months,
         monthData,
         handleDayClick,
+        renderHeatMap
       };
     },
   });
@@ -149,6 +156,21 @@
     border: 1px solid #ddd;
     cursor: pointer;
   }
+  .day span{
+    display: inline-block;
+    flex: 1;
+    height: 100%;
+  }
+  .day span:nth-child(1) {
+    background: #61D3E0;
+  }
+  .day span:nth-child(2) {
+    background: #51C035;
+  }
+  .day span:nth-child(3) {
+    background: #E28A6A;
+  }
+
   
   .color-0 {
     background-color: #ebedf0;

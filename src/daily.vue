@@ -1,28 +1,25 @@
 <template>
     <div class="daily-container">
-        <heatmap />
+        <Heatmap ref="heatmap"/>
     </div>
 </template>
 </style>
 <script lang="ts">
 import { App, TFile } from 'obsidian'
 import { defineComponent, ref, onMounted, defineProps, toRef, inject } from "vue";
-import heatmap from './heatmap.vue';
+import Heatmap from './heatmap.vue';
 import { myAppInterface } from './interfaces'
 export default defineComponent({
     name: "Daily",
     components: {
-        heatmap
+        Heatmap
     },
     setup(props: myAppInterface) {
+        
+        const heatmap = ref<InstanceType<typeof Heatmap>>()
         interface Times {
             year: number,
             month: number[]
-        }
-        interface DailyFile {
-            todos: {
-                type: object[]
-            }
         }
         const myApp = inject<myAppInterface>('myApp') || {
             vault: {
@@ -31,7 +28,7 @@ export default defineComponent({
             }
         };
         let renderCanledar = ref<boolean>(false);
-        let dailyList = ref<DailyFile[]>([]), timesRef = ref<Times[]>([]), taskList = ref<object[]>([])
+        let habitList = ref<any[]>([]), timesRef = ref<Times[]>([])
         onMounted(async () => {
             let files = myApp.vault.getAbstractFileByPath('01Inbox/daily').children.filter((item: TFile) => item.name != 'archives')
             // .map((item: TFile) => ({...item, todos: []}));
@@ -42,13 +39,18 @@ export default defineComponent({
                 if (file && file.path) {
                     try {
                         const fileContent = await myApp.vault.read(file);
-                        const todos = parseTodos(fileContent, file.name.replace('.md', ''));
-                        file.todos = todos || []
-                        allTodos = [...allTodos, ...todos]
+                        const habitContent = parseTodos(getHabitContent(fileContent), file.name.replace('.md', ''))
+                        console.log(habitContent, 111222333)
+                        // const todos = parseTodos(fileContent, file.name.replace('.md', ''));
+                        // file.todos = todos || []
+                        allTodos = [...allTodos, habitContent]
                         if(index == realFiles.length - 1) {
-                            taskList.value = allTodos
-                            dailyList.value = realFiles;
+                            habitList.value = allTodos
                             renderCanledar.value = true
+                            console.log(heatmap)
+                            if(heatmap.value) {
+                                heatmap.value.renderHeatMap(allTodos)
+                            }
 
                         }
                     } catch (error) {
@@ -56,8 +58,16 @@ export default defineComponent({
                     }
                 }
             })
-            formatTime()
         })
+        function getHabitContent(markdownContent: string):string {
+            // 使用正则表达式匹配到habit标题内的内容
+            const habitContentMatch = markdownContent.match(/## habit\n(.*?)(?=\n##|\n---|$)/s);
+            if (!habitContentMatch) {
+                return '';
+            }
+
+            return habitContentMatch[1].trim();
+        }
         function formatRealFile(files: [], result: any[]) {
             files.forEach((item: any) => {
                 if(item.children && item.children.length) {
@@ -67,127 +77,33 @@ export default defineComponent({
                 }
             })
         }
-        function parseTodos(content: string, date: string): TaskFormat[] {
+        function parseTodos(content: string, date: string) {
             const regex = /- \[([x ])\] .*/g;
 
             let matches = content.match(regex);
             if (matches) {
-                let result: TaskFormat[] = matches.map((item: string) => formatTask(item, date));
+                let result = matches.map((item: string) => formatTask(item, date));
                 
-                return result
-            } else {
-                return []
-            }
-        }
-
-        function formatTime() {
-            let times: string[] = [...new Set(dailyList.value.map((d: any) => d.basename))].filter((d: string) => isValidDate(d))
-            extractYearsAndMonths(times)
-        }
-        function extractYearsAndMonths(dates: string[]) {
-            const result = new Map<number, { year: number, month: number[] }>();
-
-            dates.forEach((date: string) => {
-                const match = date.match(/(\d{4})-(\d{2})-\d{2}/);
-                if (match) {
-                    const year = parseInt(match[1], 10);
-                    const month = parseInt(match[2], 10);
-
-                    if (result.has(year)) {
-                        if (!result.get(year)?.month.includes(month)) {
-                            result.get(year)?.month.push(month);
-                        }
-                    } else {
-                        result.set(year, { year, month: [month] });
-                    }
-                }
-            });
-
-            timesRef.value = Array.from(result.values());
-        }
-        function isValidDate(str: string) {
-            // 正则表达式匹配 YYYY-MM-DD 格式
-            const regex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
-            return regex.test(str);
-        }
-
-        interface TaskFormat {
-            title: string,
-            start: string,
-            end: string,
-            content: string,
-            theme: string,
-            tag: string
-        }
-        interface TaskColos {
-            [key: string]: string;
-            work: 'blue';
-            learn: 'green';
-            life: 'red';
-            study: 'yellow';
-            other: 'purple';
-            daily: 'pink';
-        }
-
-        let taskColos:TaskColos = {
-            'work': 'blue',
-            'learn': 'green',
-            'life': 'red',
-            'study': 'yellow',
-            'other': 'purple',
-            'daily': 'pink'
-        }
-        function formatTask(input: string, date: string): TaskFormat {
-            // 正则表达式匹配带时间范围的字符串（兼容已完成待办）
-            const withTimeRangeRegex = /- \[([ x])\] (\d{2}:\d{2}) - (\d{2}:\d{2}) (.+?) #(\w+)\/(\w+)/; 
-            // 正则表达式匹配带单个时间点的字符串（兼容已完成待办）
-            const withSingleTimeRegex = /- \[([ x])\] (\d{2}:\d{2}) (.+?) #(\w+)\/(\w+)/;
-            // 正则表达式匹配不带时间的字符串（兼容已完成待办）
-            const withoutTimeRegex = /- \[([ x])\] (.+?) #(\w+)\/(\w+)/;
-
-            let match: RegExpMatchArray | null;
-
-            match = input.match(withTimeRangeRegex);
-            if (match) {
-                // 如果匹配到带时间范围的字符串
                 return {
-                    title: `${match[4].trim()}`.slice(0, 15), // 返回task/work格式的title
-                    start: date + ' ' + match[2],
-                    end: date + ' ' + match[3],
-                    content: `${match[4].trim()}  ${match[6]}`,
-                    theme: taskColos[match[6]] || 'pink',
-                    tag: match[6]
-                };
+                    habits: result,
+                    date
+                }
             } else {
-                match = input.match(withSingleTimeRegex);
-                if (match) {
-                    // 如果匹配到带单个时间点的字符串
-                    return {
-                        title: `${match[3].trim()}`.slice(0, 15), // 返回task/work格式的title
-                        start: date + ' ' + match[2],
-                        end: date + ' ' + match[2],
-                        content: `${match[3].trim()}  ${match[5]}`,
-                        theme: taskColos[match[5]] || 'pink',
-                        tag: match[5]
-                    };
-                } else {
-                    match = input.match(withoutTimeRegex);
-                    if (match) {
-                        // 如果匹配到不带时间的字符串
-                        return {
-                            title: `${match[1].trim()}`.slice(0, 15), // 返回task/work格式的title
-                            start: date,
-                            end: date,
-                            content: `${match[1].trim()}  ${match[4]}`,
-                            theme: taskColos[match[4]] || 'pink',
-                            tag: match[4]
-                        };
-                    } else {
-                        // 如果都不匹配，抛出错误
-                        throw new Error('输入的字符串不符合预期格式');
-                    }
+                return {
+                    habits: [],
+                    date
                 }
             }
+        }
+
+
+        function formatTask(inputStr: string, date: string) {
+            // 先去除行首行尾的空格
+            const trimmedLine = inputStr.trim();
+                // 使用正则表达式匹配并去除 "- [ ]" 或 "- [x]" 前缀，以及后续可能出现的空格
+            const content = trimmedLine.replace(/^- \[\s*\]|^- \[x\]\s*/, '').trim();
+            const status = trimmedLine.includes('[x]') ? 1 : 0;
+            return {content, status};
         }
         let showTimeLine = ref<boolean>(false)
         function showTimeLineAction(type: boolean) {
@@ -207,10 +123,11 @@ export default defineComponent({
         console.log(`当前月份：${month}`);
 
         return {
-            taskList,
+            habitList,
             renderCanledar,
             showTimeLine,
-            showTimeLineAction
+            showTimeLineAction,
+            heatmap
         }
     }
 })
