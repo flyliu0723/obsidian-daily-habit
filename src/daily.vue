@@ -39,8 +39,8 @@ export default defineComponent({
                 if (file && file.path) {
                     try {
                         const fileContent = await myApp.vault.read(file);
-                        const habitContent = parseTodos(getHabitContent(fileContent), file.name.replace('.md', ''))
-                        console.log(habitContent, 111222333)
+                        const habitContent = parseTodos(getHabitContent(fileContent), file.name.replace('.md', ''), file)
+                        // console.log(habitContent, 111222333)
                         // const todos = parseTodos(fileContent, file.name.replace('.md', ''));
                         // file.todos = todos || []
                         allTodos = [...allTodos, habitContent]
@@ -77,7 +77,7 @@ export default defineComponent({
                 }
             })
         }
-        function parseTodos(content: string, date: string) {
+        function parseTodos(content: string, date: string, file: any) {
             const regex = /- \[([x ])\] .*/g;
 
             let matches = content.match(regex);
@@ -86,12 +86,14 @@ export default defineComponent({
                 
                 return {
                     habits: result,
-                    date
+                    date,
+                    file
                 }
             } else {
                 return {
                     habits: [],
-                    date
+                    date,
+                    file
                 }
             }
         }

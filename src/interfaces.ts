@@ -1,6 +1,7 @@
 export interface myAppInterface {
     vault: {
         getAbstractFileByPath: Function,
-        read: Function
+        read: Function,
+        modify: Function
     }
 }
